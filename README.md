@@ -62,4 +62,4 @@ src/
 
 **Source:** Teradata, Oracle, SQL Server, Netezza, PostgreSQL, MySQL
 
-**Target:** Snowflake, Redshift, BigQuery, Azure Synapase, Spark, PostgreSQL
+**Target:** Snowflake, Redshift, BigQuery, Azure Synapse, Spark, PostgreSQL
