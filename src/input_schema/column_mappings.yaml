@@ -1,0 +1,59 @@
+# Custom column type mappings
+column_mappings:
+  enimen_d:
+    type: "numeric"
+    faker_provider: null  # Use dtype handler
+    min: 1
+    max: 999999
+  
+  secret_code:
+    type: "text"
+    faker_provider: "uuid"  # Use Faker UUID generator
+  
+  product_description:
+    type: "text"
+    faker_provider: "sentence"  # Generate full sentences
+
+
+complex_output_format: "json"  # json or dict
+
+column_mappings:
+  address:
+    type: "struct"
+    null_rate: 0.02
+  
+  tags:
+    type: "array"
+    array:
+      length_range: [2, 5]
+    null_rate: 0.05
+  
+  scores:
+    type: "array"
+    array:
+      length_range: [3, 10]
+    null_rate: 0.01
+  
+  metadata:
+    type: "map"
+    map:
+      size_range: [2, 4]
+    null_rate: 0.05
+  
+  config:
+    type: "map"
+    map:
+      size_range: [1, 3]
+    null_rate: 0.0
+  
+  contacts:
+    type: "array"
+    array:
+      length_range: [1, 5]
+    null_rate: 0.10
+  
+  settings:
+    type: "map"
+    map:
+      size_range: [2, 4]
+    null_rate: 0.05

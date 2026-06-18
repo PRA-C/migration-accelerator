@@ -1,0 +1,25 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Secrets and logs
+.env
+*.log
+
+# Generated migration outputs
+src/target_files_migration/*
+!src/target_files_migration/.gitkeep
+
+# Generated synthetic data
+src/synthetic_data_gen/*.csv
+
+# Empty root placeholder dirs
+/source_files_for_migration/
+/target_files_migration/
