@@ -1,0 +1,29 @@
+# Teradata client tooling for Docker Desktop.
+#
+# Teradata does NOT publish a database engine image. Use one of:
+#   1. Vantage Express VM (local) — https://downloads.teradata.com/download/database/teradata-express
+#   2. Teradata Trial / ClearScape (cloud) — https://clearscape.teradata.com
+#
+# Set TD_HOST, TD_USER, TD_PASSWORD in ../.env before starting.
+
+services:
+  teradata-jupyter:
+    image: teradata/jupyterlab-extensions:latest
+    container_name: migration-accelarator-teradata-jupyter
+    ports:
+      - "127.0.0.1:8888:8888"
+    environment:
+      accept_license: "Y"
+      # For Vantage Express on VMware/VirtualBox, use host.docker.internal from inside the container.
+      TD_HOST: ${TD_HOST:-host.docker.internal}
+      TD_USER: ${TD_USER:-dbc}
+      TD_PASSWORD: ${TD_PASSWORD:-dbc}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - teradata-notebooks:/home/jovyan/JupyterLabRoot
+      - ../src/source_files_for_migration:/home/jovyan/source_sql:ro
+    restart: unless-stopped
+
+volumes:
+  teradata-notebooks:

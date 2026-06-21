@@ -60,6 +60,6 @@ src/
 
 ## Supported databases
 
-**Source:** Teradata, Oracle, SQL Server, Netezza, PostgreSQL, MySQL
+**Source:** Teradata, Oracle, SQL Server, Netezza, PostgreSQL, MySQL, DuckDB
 
 **Target:** Snowflake, Redshift, BigQuery, Azure Synapse, Spark, PostgreSQL

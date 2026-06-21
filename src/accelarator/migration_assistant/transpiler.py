@@ -21,6 +21,7 @@ from .io_handlers import (
     target_migration_filename,
     write_target_migration_file,
 )
+from accelarator.metadata import log_migration_result
 
 OUTPUT_FORMAT_INSTRUCTIONS = {
     OutputFormat.TARGET_SQL_ONLY: (
@@ -167,11 +168,14 @@ def transpile_request(request: MigrationRequest) -> MigrationResponse:
             code = _generate_code(request, revision_feedback)
 
             if not code.strip():
-                return create_error_response(
+                response = create_error_response(
                     request.request_id,
                     "LLM returned empty output",
                     "EmptyResponse",
                 )
+                response.processing_time_ms = (time.time() - start) * 1000
+                log_migration_result(request, response)
+                return response
 
             format_check = _check_output_format(code, request.output_format)
             if format_check and not format_check.passed:
@@ -206,6 +210,7 @@ def transpile_request(request: MigrationRequest) -> MigrationResponse:
             for issue in (validation.issues if validation else []):
                 response.add_warning(issue)
             response.processing_time_ms = (time.time() - start) * 1000
+            log_migration_result(request, response)
             return response
 
         response = create_success_response(
@@ -229,11 +234,15 @@ def transpile_request(request: MigrationRequest) -> MigrationResponse:
         response.generated_files[output_name] = output_path
         response.add_message(f"Saved migrated output to {TARGET_MIGRATION_DIR}/{output_name}")
         response.processing_time_ms = (time.time() - start) * 1000
+        log_migration_result(request, response)
         return response
 
     except Exception as exc:
-        return create_error_response(
+        response = create_error_response(
             request.request_id,
             str(exc),
             type(exc).__name__,
         )
+        response.processing_time_ms = (time.time() - start) * 1000
+        log_migration_result(request, response)
+        return response

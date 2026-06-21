@@ -5,7 +5,7 @@ Place this at: src/accelerator/migration_assistant/translator.py
 UPDATED: Direct source/target selection instead of preset patterns
 """
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 import os
 import io
 import sys
@@ -24,11 +24,9 @@ try:
     )
     from .transpiler import transpile_request
     from accelarator.llm import MAX_MIGRATION_ATTEMPTS
+    from accelarator.metadata import init_metadata_db, METADATA_DB_PATH
 except Exception as exc:
     raise
-
-
-# ============ HELPER FUNCTIONS ============
 
 def clear_screen():
     """Clear terminal screen"""
@@ -91,16 +89,17 @@ def select_source_database() -> SourceDatabase:
         "4": SourceDatabase.NETEZZA,
         "5": SourceDatabase.POSTGRESQL,
         "6": SourceDatabase.MYSQL,
+        "7": SourceDatabase.DUCKDB,
     }
     
     for key, db in source_options.items():
         print(f"{key}. {db.value.upper()}")
     
     while True:
-        choice = input("\nSelect source (1-6): ").strip()
+        choice = input("\nSelect source (1-7): ").strip()
         if choice in source_options:
             return source_options[choice]
-        print("❌ Invalid choice. Please select 1-6")
+        print("❌ Invalid choice. Please select 1-7")
 
 
 def select_target_database() -> TargetDatabase:
@@ -157,36 +156,79 @@ def select_code_input_method() -> str:
         print("❌ Invalid choice. Please select 1 or 2")
 
 
-def select_source_file() -> Tuple[Optional[str], str]:
-    """Select a migration source file from the configured source folder."""
+def _parse_file_selection(raw: str, max_index: int) -> List[int]:
+    """Parse file selection: single (1), list (1,3,5), range (1-4), or all (A)."""
+    raw = raw.strip().upper()
+    if raw == "A":
+        return list(range(1, max_index + 1))
+
+    indices: set[int] = set()
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if "-" in part:
+            bounds = part.split("-", 1)
+            if len(bounds) != 2 or not bounds[0].isdigit() or not bounds[1].isdigit():
+                continue
+            start, end = int(bounds[0]), int(bounds[1])
+            if start > end:
+                start, end = end, start
+            for i in range(start, end + 1):
+                if 1 <= i <= max_index:
+                    indices.add(i)
+        elif part.isdigit():
+            i = int(part)
+            if 1 <= i <= max_index:
+                indices.add(i)
+
+    return sorted(indices)
+
+
+def select_source_files() -> List[Tuple[str, str]]:
+    """Select one or more migration source files from the configured source folder."""
     source_files = read_source_migration_files()
 
     if not source_files:
         print(f"\n❌ No source files found in {SOURCE_MIGRATION_DIR}/")
-        print(f"   Supported extensions: .sql, .proc, .txt")
-        return None, ""
+        print("   Supported extensions: .sql, .proc, .txt")
+        return []
 
-    print_section(f"SELECT SOURCE FILE ({SOURCE_MIGRATION_DIR}/)")
+    print_section(f"SELECT SOURCE FILE(S) ({SOURCE_MIGRATION_DIR}/)")
     filenames = list(source_files.keys())
     for index, filename in enumerate(filenames, start=1):
         print(f"{index}. {filename}")
 
+    print(f"\n[A] All files")
+    print("Examples: 1  |  1,3,5  |  1-4")
+
     while True:
-        choice = input(f"\nSelect file (1-{len(filenames)}): ").strip()
-        if choice.isdigit() and 1 <= int(choice) <= len(filenames):
-            filename = filenames[int(choice) - 1]
-            content = source_files[filename]
-            print(f"\n✓ Loaded {filename} ({len(content)} characters)")
-            return filename, content
-        print(f"❌ Invalid choice. Please select 1-{len(filenames)}")
+        choice = input(
+            f"\nSelect file(s) (1-{len(filenames)}, comma-separated, range, or A): "
+        ).strip()
+        selected_indices = _parse_file_selection(choice, len(filenames))
+
+        if not selected_indices:
+            print(f"❌ Invalid choice. Enter 1-{len(filenames)}, e.g. 1,3 or 1-4, or A")
+            continue
+
+        selected = [
+            (filenames[i - 1], source_files[filenames[i - 1]])
+            for i in selected_indices
+        ]
+        names = ", ".join(name for name, _ in selected)
+        total_chars = sum(len(content) for _, content in selected)
+        print(f"\n✓ Loaded {len(selected)} file(s): {names} ({total_chars} characters)")
+        return selected
 
 
-def get_sql_code() -> Tuple[Optional[str], str]:
-    """Get SQL/Procedure code from file or manual input."""
+def get_sql_code() -> List[Tuple[Optional[str], str]]:
+    """Get SQL/Procedure code from file(s) or manual input."""
     method = select_code_input_method()
 
     if method == "file":
-        return select_source_file()
+        files = select_source_files()
+        return [(name, content) for name, content in files]
 
     print_section("ENTER SQL OR STORED PROCEDURE")
     print("Type 'END' on a new line when done:\n")
@@ -200,7 +242,7 @@ def get_sql_code() -> Tuple[Optional[str], str]:
             lines.append(line)
         except KeyboardInterrupt:
             print("\n❌ Input cancelled")
-            return None, ""
+            return []
         except EOFError:
             break
     
@@ -208,32 +250,31 @@ def get_sql_code() -> Tuple[Optional[str], str]:
     
     if not code.strip():
         print("❌ No code provided")
-        return None, ""
+        return []
     
     print(f"\n✓ Received {len(code)} characters")
-    return None, code
+    return [(None, code)]
 
 
-def display_migration_request(request: MigrationRequest):
-    """Display migration request details"""
+def display_migration_requests(requests: List[MigrationRequest]):
+    """Display migration request summary for one or more files."""
     
     print("\n" + "=" * 80)
     print("📋 MIGRATION REQUEST SUMMARY")
     print("=" * 80)
     
-    print(f"\n✓ Request ID: {request.request_id}")
-    print(f"✓ Source: {request.source.value.upper()}")
-    print(f"✓ Target: {request.target.value.upper()}")
-    print(f"✓ Output Format: {request.output_format.value.upper()}")
-    print(f"✓ Code Type: {request.code_type.value.upper()}")
-    print(f"✓ Code Length: {len(request.code)} characters")
-    
-    if request.source_filename:
-        print(f"✓ Source File: {SOURCE_MIGRATION_DIR}/{request.source_filename}")
-    if request.table_name:
-        print(f"✓ Target Name: {request.table_name}")
-    output_name = target_migration_filename(request.source_filename, request.output_format)
-    print(f"✓ Output File: {TARGET_MIGRATION_DIR}/{output_name}")
+    first = requests[0]
+    print(f"\n✓ Source: {first.source.value.upper()}")
+    print(f"✓ Target: {first.target.value.upper()}")
+    print(f"✓ Output Format: {first.output_format.value.upper()}")
+    print(f"✓ Files to migrate: {len(requests)}")
+
+    for request in requests:
+        print(f"\n  • {request.source_filename or 'manual input'}")
+        print(f"    Code length: {len(request.code)} characters")
+        print(f"    Target name: {request.table_name}")
+        output_name = target_migration_filename(request.source_filename, request.output_format)
+        print(f"    Output: {TARGET_MIGRATION_DIR}/{output_name}")
     
     print("\n" + "=" * 80)
 
@@ -308,95 +349,103 @@ def display_migration_response(response: MigrationResponse):
 
 # ============ MAIN INTERACTIVE FUNCTION ============
 
-def interactive_migration() -> Optional[MigrationRequest]:
-    """Run interactive migration input flow"""
+def interactive_migration() -> List[MigrationRequest]:
+    """Run interactive migration input flow."""
     
     try:
         clear_screen()
         print_header("SQL MIGRATION ASSISTANT - INTERACTIVE MODE")
         print("Select any source and target database combination\n")
         
-        # Step 1: Select source database
         source_db = select_source_database()
         print(f"\n✓ Selected Source: {source_db.value.upper()}")
         
-        # Step 2: Select target database
         target_db = select_target_database()
         print(f"\n✓ Selected Target: {target_db.value.upper()}")
         
-        # Step 3: Select output format
         output_format = select_output_format()
         print(f"\n✓ Output Format: {output_format.value.upper()}")
         
-        # Step 4: Get SQL code
-        source_filename, sql_code = get_sql_code()
-        if not sql_code:
-            return None
+        code_entries = get_sql_code()
+        if not code_entries:
+            return []
         
-        # Step 5: Create migration request (target name derived from source file)
-        request = MigrationRequest(
-            source=source_db,
-            target=target_db,
-            output_format=output_format,
-            code=sql_code,
-            code_type=CodeType.UNKNOWN,
-            table_name=derive_target_name_from_source(source_filename),
-            source_filename=source_filename,
-        )
+        requests: List[MigrationRequest] = []
+        for source_filename, sql_code in code_entries:
+            request = MigrationRequest(
+                source=source_db,
+                target=target_db,
+                output_format=output_format,
+                code=sql_code,
+                code_type=CodeType.UNKNOWN,
+                table_name=derive_target_name_from_source(source_filename),
+                source_filename=source_filename,
+            )
+            is_valid, errors = request.validate()
+            if not is_valid:
+                label = source_filename or "manual input"
+                print(f"\n❌ VALIDATION FAILED for {label}:")
+                for error in errors:
+                    print(f"  ❌ {error}")
+                return []
+            requests.append(request)
         
-        # Validate request
-        is_valid, errors = request.validate()
+        display_migration_requests(requests)
         
-        if not is_valid:
-            print("\n❌ VALIDATION FAILED:")
-            for error in errors:
-                print(f"  ❌ {error}")
-            return None
-        
-        # Display summary
-        display_migration_request(request)
-        
-        # Ask for confirmation
         confirm = input("\nProceed with migration? (yes/no): ").strip().lower()
         if confirm not in ["yes", "y"]:
             print("❌ Migration cancelled")
-            return None
+            return []
         
-        print("\n✓ Migration request created successfully!")
-        return request
+        print(f"\n✓ {len(requests)} migration request(s) created successfully!")
+        return requests
     
     except KeyboardInterrupt:
         print("\n\n❌ Operation cancelled by user")
-        return None
+        return []
     except Exception as e:
         print(f"\n❌ Error: {str(e)}")
-        return None
+        return []
 
 
 # ============ MIGRATION ============
 
-def run_migration(request: MigrationRequest) -> MigrationResponse:
-    """Transpile source code via LLM with data manager validation and display the result."""
-    print("\n⏳ Data engineer generating migration...")
-    print(f"   (data manager will validate; up to {MAX_MIGRATION_ATTEMPTS} attempts)\n")
-    response = transpile_request(request)
-    display_migration_response(response)
-    return response
+def run_migrations(requests: List[MigrationRequest]) -> List[MigrationResponse]:
+    """Transpile one or more requests via LLM with data manager validation."""
+    responses: List[MigrationResponse] = []
+    total = len(requests)
+
+    for index, request in enumerate(requests, start=1):
+        label = request.source_filename or request.request_id
+        print(f"\n{'=' * 80}")
+        print(f"⏳ Migrating {index}/{total}: {label}")
+        print(f"   (data manager will validate; up to {MAX_MIGRATION_ATTEMPTS} attempts)")
+        print("=" * 80)
+        response = transpile_request(request)
+        display_migration_response(response)
+        responses.append(response)
+
+    succeeded = sum(1 for r in responses if r.status == ExecutionStatus.SUCCESS)
+    print(f"\n{'=' * 80}")
+    print(f"📊 BATCH COMPLETE: {succeeded}/{total} succeeded")
+    print("=" * 80)
+    return responses
 
 
 # ============ MAIN ============
 
 if __name__ == "__main__":
     ensure_migration_dirs()
+    init_metadata_db()
     print("\nRunning Interactive Migration...\n")
     print(f"Source files: {SOURCE_MIGRATION_DIR}/")
-    print(f"Target output: {TARGET_MIGRATION_DIR}/\n")
+    print(f"Target output: {TARGET_MIGRATION_DIR}/")
+    print(f"Metadata DB:  {METADATA_DB_PATH}\n")
     
-    request = interactive_migration()
+    requests = interactive_migration()
     
-    if request:
-        print(f"\n✓ Request created: {request.request_id}")
-        run_migration(request)
+    if requests:
+        run_migrations(requests)
     
     else:
         print("\n❌ No migration request created")

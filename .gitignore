@@ -12,6 +12,8 @@ wheels/
 # Secrets and logs
 .env
 *.log
+credentials/*
+!credentials/.gitkeep
 
 # Generated migration outputs
 src/target_files_migration/*
@@ -19,6 +21,23 @@ src/target_files_migration/*
 
 # Generated synthetic data
 src/synthetic_data_gen/*.csv
+
+# Local DuckDB source database (schema + synthetic data)
+data/*.duckdb
+data/*.duckdb.wal
+
+# Local DuckDB metadata (run history)
+metadata/*.duckdb
+metadata/*.duckdb.wal
+
+# Reconciliation query result exports
+reconciliation/source_results/*
+!reconciliation/source_results/.gitkeep
+reconciliation/target_results/*
+!reconciliation/target_results/.gitkeep
+
+# Empty dirs for generated artifacts
+src/synthetic_data_gen/.gitkeep
 
 # Empty root placeholder dirs
 /source_files_for_migration/

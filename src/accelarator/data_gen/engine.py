@@ -37,6 +37,8 @@ import yaml
 from datetime import datetime
 import io
 
+from accelarator.metadata import init_metadata_db, log_synthetic_data_result
+
 # ============================================================================
 # SETUP
 # ============================================================================
@@ -81,6 +83,30 @@ BASE_FAKER_HINTS = {
 }
 
 DEFAULT_NULL_RATE = 0.05
+
+ORDER_STATUS_VALUES = ("COMPLETED", "SHIPPED", "DELIVERED", "PENDING", "CANCELLED", "REFUNDED")
+ORDER_STATUS_WEIGHTS = (0.55, 0.20, 0.15, 0.05, 0.03, 0.02)
+
+RECON_COUNTRY_POOL = (
+    "United States",
+    "United Kingdom",
+    "Canada",
+    "Germany",
+    "France",
+    "Australia",
+    "India",
+    "Japan",
+    "Brazil",
+    "Mexico",
+)
+
+
+def _random_order_status() -> str:
+    return str(np.random.choice(ORDER_STATUS_VALUES, p=ORDER_STATUS_WEIGHTS))
+
+
+def _random_recon_country() -> str:
+    return str(np.random.choice(RECON_COUNTRY_POOL))
 
 # Supported SQL dialects
 SUPPORTED_DIALECTS = {
@@ -273,14 +299,16 @@ def build_dynamic_faker_hints(columns: Dict[str, Dict]) -> Dict[str, Callable]:
                 faker_map[col_name] = fake.address
             elif "city" in col_name_lower:
                 faker_map[col_name] = fake.city
-            elif "country" in col_name_lower:
-                faker_map[col_name] = fake.country
+            elif col_name_lower == "country":
+                faker_map[col_name] = _random_recon_country
             elif "company" in col_name_lower:
                 faker_map[col_name] = fake.company
             elif "url" in col_name_lower or "website" in col_name_lower:
                 faker_map[col_name] = fake.url
             elif "username" in col_name_lower:
                 faker_map[col_name] = fake.user_name
+            elif col_name_lower == "status":
+                faker_map[col_name] = _random_order_status
             elif "uuid" in col_name_lower or "guid" in col_name_lower:
                 faker_map[col_name] = fake.uuid4
     
@@ -738,6 +766,7 @@ def process_all_tables(
     logger.info("=" * 80)
     
     for table_name, ddl in ddl_dict.items():
+        input_path = os.path.join(input_dir, f"{table_name}.sql")
         try:
             n_rows = row_config.get(table_name, 1000) if row_config else 1000
             
@@ -759,10 +788,28 @@ def process_all_tables(
             
             results[table_name] = df
             successful += 1
+            log_synthetic_data_result(
+                table_name=table_name,
+                dialect=dialect,
+                input_schema_path=input_path,
+                output_file_path=output_path,
+                row_count=len(df),
+                column_count=len(df.columns),
+                seed=seed,
+                success=True,
+            )
         
         except Exception as e:
             logger.error(f"[ERROR] Error processing {table_name}: {str(e)}")
             failed += 1
+            log_synthetic_data_result(
+                table_name=table_name,
+                dialect=dialect,
+                input_schema_path=input_path,
+                seed=seed,
+                success=False,
+                error_message=str(e),
+            )
         
         logger.info("-" * 80)
     
@@ -943,6 +990,7 @@ def show_interactive_menu():
 
 def main():
     """Main entry point."""
+    init_metadata_db()
     logger.info("Starting Synthetic Data Engine v2.0...")
     show_interactive_menu()
 
