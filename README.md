@@ -67,6 +67,24 @@ uv run python -m test_generator --catalog --catalog-docs
 uv run python -m documentation
 ```
 
+### Run full agent pipeline (LangGraph)
+
+Runs all agents sequentially: provision → migrate → reconcile → test → document.
+
+```bash
+uv run python -m agents
+uv run python -m agents --list-agents
+uv run python -m agents --skip-provision --skip-migrate --no-llm
+```
+
+### Gradio web UI (chat + live agent progress)
+
+```bash
+uv run python app.py
+```
+
+Opens a browser chat where you can run the full pipeline, migrate, reconcile, test, and generate docs with real-time agent activity.
+
 ## Project structure
 
 ```
@@ -76,6 +94,7 @@ migration-accelerator/
 │   ├── reconciliation/           # Recon workflows, compare, reports
 │   ├── test_generator/           # Regression test suite
 │   ├── documentation/            # Doc + lineage generator
+│   ├── agents/                   # LangGraph agent pipeline orchestrator
 │   ├── input_schema/             # Base table DDL (Teradata)
 │   └── source_files_for_migration/  # Input migration SQL
 ├── scripts/                      # Setup and batch utilities
