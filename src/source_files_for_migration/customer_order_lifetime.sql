@@ -1,4 +1,4 @@
--- DUCKDB: Customer lifetime value and order frequency
+-- TERADATA: Customer lifetime value and order frequency
 -- Tables: customers, orders (from input_schema)
 
 WITH customer_orders AS (
@@ -34,9 +34,9 @@ customer_metrics AS (
         AVG(amount) AS avg_order_value,
         MIN(order_date) AS first_order_date,
         MAX(order_date) AS last_order_date,
-        MAX(order_date) - MIN(order_date) AS customer_tenure_days
+        (MAX(order_date) - MIN(order_date)) DAY(4) AS customer_tenure_days
     FROM customer_orders
-    GROUP BY 1, 2, 3, 4, 5, 6, 7
+    GROUP BY customer_id, first_name, last_name, email, city, country, signup_date
 )
 SELECT
     customer_id,

@@ -2,7 +2,7 @@
 Interactive migration reconciliation prep against migration_runs metadata.
 
 For each selected run:
-  1. Use shared schemas from .env (GCP_SOURCE_DATASET / GCP_TARGET_DATASET)
+  1. Use shared Teradata database (TD_DATABASE) and BigQuery dataset (GCP_TARGET_DATASET)
   2. Provision base tables once per batch (customers, orders, products)
   3. Execute source & target SQL
   4. Export CSV results per run_id for later comparison
@@ -41,7 +41,7 @@ def _format_recon_ind(value: str | None) -> str:
 
 def _print_runs(runs: list[dict]) -> None:
     print("\n" + "=" * 100)
-    print("MIGRATION RUNS (metadata/accelerator.duckdb → migration_runs)")
+    print("MIGRATION RUNS (metadata/accelerator.duckdb | source: Teradata → target: BigQuery)")
     print("=" * 100)
     if not runs:
         print("No migration runs found.")
@@ -57,6 +57,10 @@ def _print_runs(runs: list[dict]) -> None:
             f"recon={_format_recon_ind(run.get('recon_ind')):<10} "
             f"src={src_schema:<16} tgt={tgt_schema}"
         )
+        if run.get("recon_result_path"):
+            passed = run.get("recon_passed")
+            verdict = "passed" if passed else "failed" if passed is False else "-"
+            print(f"         compare: {verdict}  report={run.get('recon_result_path')}")
     print("=" * 100)
 
 
@@ -116,9 +120,14 @@ def run_reconciliation_prep(run_ids: list[int]) -> None:
         print("No runs selected.")
         return
 
-    source_schema, target_schema = recon_schema_names()
+    try:
+        source_schema, target_schema = recon_schema_names()
+    except ValueError as exc:
+        print(f"\nConfiguration error: {exc}")
+        return
+
     print(f"\nPreparing {len(run_ids)} run(s)...")
-    print(f"  Shared schemas: DuckDB {source_schema} / BigQuery {target_schema}")
+    print(f"  Shared schemas: Teradata {source_schema} / BigQuery {target_schema}")
     print(f"  Source results → {RECON_SOURCE_RESULTS_DIR}/{{run_id}}/")
     print(f"  Target results → {RECON_TARGET_RESULTS_DIR}/{{run_id}}/\n")
 
@@ -163,6 +172,8 @@ def run_reconciliation_prep(run_ids: list[int]) -> None:
 
     print("\n" + "=" * 100)
     print(f"Prep complete: prepared={prepared}, failed={failed}, skipped={skipped}")
+    print("Compare results: uv run python -m reconciliation.compare_results")
+    print("Report: reconciliation/reconciliation_report.md")
     print("Compare CSVs under reconciliation/source_results vs reconciliation/target_results")
     print("=" * 100)
 

@@ -105,12 +105,16 @@ def _random_order_status() -> str:
     return str(np.random.choice(ORDER_STATUS_VALUES, p=ORDER_STATUS_WEIGHTS))
 
 
+def _short_phone() -> str:
+    return fake.numerify("###-###-####")
+
+
 def _random_recon_country() -> str:
     return str(np.random.choice(RECON_COUNTRY_POOL))
 
 # Supported SQL dialects
 SUPPORTED_DIALECTS = {
-    "1": ("duckdb", "DuckDB (default)"),
+    "1": ("teradata", "Teradata (default)"),
     "2": ("postgres", "PostgreSQL"),
     "3": ("mysql", "MySQL"),
     "4": ("sqlite", "SQLite"),
@@ -121,7 +125,6 @@ SUPPORTED_DIALECTS = {
     "9": ("oracle", "Oracle"),
     "10": ("hive", "Apache Hive"),
     "11": ("spark", "Apache Spark"),
-    "12": ("teradata", "Teradata"),
 }
 
 # ============================================================================
@@ -224,7 +227,7 @@ def parse_map_definition(map_sql: str) -> Tuple[str, str]:
 # DDL PARSING
 # ============================================================================
 
-def parse_ddl(ddl: str, dialect: str = "duckdb") -> Dict[str, Dict]:
+def parse_ddl(ddl: str, dialect: str = "teradata") -> Dict[str, Dict]:
     """
     Parse SQL CREATE TABLE statement and extract column information.
     
@@ -242,8 +245,8 @@ def parse_ddl(ddl: str, dialect: str = "duckdb") -> Dict[str, Dict]:
         ]
         
         if dialect.lower() not in valid_dialects:
-            logger.warning(f"Unknown dialect '{dialect}', using 'duckdb' instead")
-            dialect = "duckdb"
+            logger.warning(f"Unknown dialect '{dialect}', using 'teradata' instead")
+            dialect = "teradata"
         
         parsed = sqlglot.parse_one(ddl, read=dialect)
         cols = {}
@@ -287,6 +290,8 @@ def build_dynamic_faker_hints(columns: Dict[str, Dict]) -> Dict[str, Callable]:
         if col_name not in faker_map:
             if "email" in col_name_lower:
                 faker_map[col_name] = fake.email
+            elif col_name_lower == "phone":
+                faker_map[col_name] = _short_phone
             elif "phone" in col_name_lower or "mobile" in col_name_lower:
                 faker_map[col_name] = fake.phone_number
             elif "first_name" in col_name_lower or "fname" in col_name_lower:
@@ -644,7 +649,7 @@ def generate(
     ddl: str,
     table_name: str,
     n_rows: int = 1000,
-    dialect: str = "duckdb",
+    dialect: str = "teradata",
     custom_mappings: Optional[Dict] = None,
     seed: Optional[int] = None,
     complex_output_format: str = "json"
@@ -725,7 +730,7 @@ def process_all_tables(
     output_dir: str = "src/synthetic_data_gen",
     tables_to_process: Optional[List[str]] = None,
     row_config: Optional[Dict[str, int]] = None,
-    dialect: str = "duckdb",
+    dialect: str = "teradata",
     seed: int = 42,
     mappings_file: Optional[str] = None,
     complex_output_format: str = "json"
@@ -886,9 +891,9 @@ def show_interactive_menu():
         return
     
     if dialect_input not in SUPPORTED_DIALECTS:
-        logger.warning(f"Invalid dialect selection, using DuckDB")
-        selected_dialect = "duckdb"
-        dialect_display = "DuckDB"
+        logger.warning("Invalid dialect selection, using Teradata")
+        selected_dialect = "teradata"
+        dialect_display = "Teradata"
     else:
         selected_dialect, dialect_display = SUPPORTED_DIALECTS[dialect_input]
     

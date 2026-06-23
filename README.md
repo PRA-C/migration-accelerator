@@ -1,26 +1,32 @@
 # Migration Accelerator
 
-AI-powered SQL migration tool that transpiles source database code to target platforms using Claude, with automated validation and retry.
+AI-powered SQL migration tool that transpiles Teradata SQL to BigQuery using Claude, with automated validation, reconciliation, and documentation.
 
 ## Features
 
 - **Interactive migration assistant** — select source/target databases, output format, and source files
 - **LLM transpilation** — data engineer generates migrated code via Claude
 - **Data manager validation** — reviews output for accuracy and retries up to 3 times
-- **File-based workflow** — read from `src/source_files_for_migration/`, write to `src/target_files_migration/`
-- **Synthetic data engine** — generate test data from DDL schemas in `src/input_schema/`
+- **Reconciliation** — compare Teradata vs BigQuery query results
+- **Regression tests** — automated test suite with markdown reports
+- **Documentation** — auto-generated migration docs and data lineage
+- **Synthetic data** — generate test data from DDL schemas
 
 ## Setup
 
 ```bash
 uv sync
-uv pip install -e .
 ```
 
-Create a `.env` file:
+Copy `.env.example` to `.env` and fill in credentials:
 
 ```
-ANTHROPIC_API_KEY=your_key_here
+ANTHROPIC_API_KEY=...
+TD_HOST=...
+TD_USER=...
+TD_PASSWORD=...
+GCP_PROJECT_ID=...
+GCP_TARGET_DATASET=migration_target
 ```
 
 ## Usage
@@ -31,35 +37,59 @@ ANTHROPIC_API_KEY=your_key_here
 uv run python -m accelarator.migration_assistant.translator
 ```
 
-1. Select source and target database
-2. Choose output format (Target SQL, PySpark, Python connector, dbt, etc.)
-3. Load SQL from `src/source_files_for_migration/` or paste manually
-4. Confirm — migrated output is saved to `src/target_files_migration/`
+Reads SQL from `src/source_files_for_migration/`, writes transpiled output to `src/target_files_migration/`.
 
-### Generate synthetic data
+### Provision Teradata source tables
 
 ```bash
-uv run python -m src.accelarator.data_gen.engine
+uv run python scripts/init_teradata_source.py
+uv run python scripts/generate_synthetic_data.py
+```
+
+### Reconciliation
+
+```bash
+uv run python scripts/run_recon_all.py
+uv run python -m reconciliation.compare_results
+```
+
+### Regression tests
+
+```bash
+uv run python -m test_generator
+uv run python -m test_generator --integration --slow
+uv run python -m test_generator --catalog --catalog-docs
+```
+
+### Generate documentation
+
+```bash
+uv run python -m documentation
 ```
 
 ## Project structure
 
 ```
-src/
-├── accelarator/
-│   ├── llm.py                    # Claude API + data manager validation
-│   ├── migration_assistant/
-│   │   ├── translator.py         # Interactive CLI
-│   │   ├── transpiler.py         # LLM transpilation loop
-│   │   └── io_handlers.py        # Models and file I/O
-│   └── data_gen/
-│       └── engine.py             # Synthetic data generator
-├── source_files_for_migration/   # Input SQL/procedures
-└── target_files_migration/       # Generated migration output
+migration-accelerator/
+├── src/
+│   ├── accelarator/              # Core package (LLM, GCP, metadata, data gen)
+│   ├── reconciliation/           # Recon workflows, compare, reports
+│   ├── test_generator/           # Regression test suite
+│   ├── documentation/            # Doc + lineage generator
+│   ├── input_schema/             # Base table DDL (Teradata)
+│   └── source_files_for_migration/  # Input migration SQL
+├── scripts/                      # Setup and batch utilities
+├── metadata/                     # DuckDB run history (gitignored)
+├── reconciliation/               # Recon CSV exports + reports (gitignored)
+├── test_results/                 # Regression reports (gitignored)
+├── documentation/                # Generated migration docs (gitignored)
+├── docs/                         # Human-written reference (test catalog)
+├── docker/                       # Local Teradata compose (optional)
+└── credentials/                  # GCP service account JSON (gitignored)
 ```
 
 ## Supported databases
 
-**Source:** Teradata, Oracle, SQL Server, Netezza, PostgreSQL, MySQL, DuckDB
+**Source:** Teradata (primary), Oracle, SQL Server, Netezza, PostgreSQL, MySQL
 
-**Target:** Snowflake, Redshift, BigQuery, Azure Synapse, Spark, PostgreSQL
+**Target:** BigQuery (primary), Snowflake, Redshift, Azure Synapse, Spark, PostgreSQL

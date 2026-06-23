@@ -36,6 +36,13 @@ def _normalize_frame_for_schema(frame: pd.DataFrame, schema: list) -> pd.DataFra
             normalized[col] = pd.to_numeric(normalized[col], errors="coerce").map(
                 lambda v: f"{v:.2f}" if pd.notna(v) else ""
             )
+        elif field.field_type == "STRING" and field.max_length:
+            normalized[col] = (
+                normalized[col]
+                .astype("string")
+                .str.slice(0, field.max_length)
+                .replace("<NA>", "")
+            )
     return normalized
 
 

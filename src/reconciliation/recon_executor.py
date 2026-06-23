@@ -27,7 +27,7 @@ class PrepareResult:
 def prepare_migration_run(run: dict, *, provision: bool = True) -> PrepareResult:
     """
     For one migration run:
-    1. Use shared source/target schema names (GCP_SOURCE_DATASET / GCP_TARGET_DATASET)
+    1. Use shared Teradata database + BigQuery dataset from .env
     2. Optionally create tables and load synthetic data (once per batch if provision=False)
     3. Execute source & target SQL
     4. Export results to reconciliation/ folders
@@ -55,7 +55,7 @@ def prepare_migration_run(run: dict, *, provision: bool = True) -> PrepareResult
     source_type = (run.get("source_type") or "").lower()
     target_type = (run.get("target_type") or "").lower()
 
-    if source_type != "duckdb" or target_type != "bigquery":
+    if source_type != "teradata" or target_type != "bigquery":
         return PrepareResult(
             run_id=run_id,
             passed=False,
@@ -65,7 +65,7 @@ def prepare_migration_run(run: dict, *, provision: bool = True) -> PrepareResult
             target_rows=None,
             source_result_path=None,
             target_result_path=None,
-            message=f"Unsupported pair {source_type} → {target_type} (need duckdb → bigquery)",
+            message=f"Unsupported pair {source_type} → {target_type} (need teradata → bigquery)",
             recon_ind="skipped",
         )
 

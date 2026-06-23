@@ -1,5 +1,6 @@
 from .store import (
     METADATA_DB_PATH,
+    clear_metadata_tables,
     get_migration_run,
     init_metadata_db,
     list_migration_runs,
@@ -11,6 +12,7 @@ from .store import (
 
 __all__ = [
     "METADATA_DB_PATH",
+    "clear_metadata_tables",
     "get_migration_run",
     "init_metadata_db",
     "list_migration_runs",

@@ -22,23 +22,27 @@ src/target_files_migration/*
 # Generated synthetic data
 src/synthetic_data_gen/*.csv
 
-# Local DuckDB source database (schema + synthetic data)
-data/*.duckdb
-data/*.duckdb.wal
-
-# Local DuckDB metadata (run history)
+# Local DuckDB stores
 metadata/*.duckdb
 metadata/*.duckdb.wal
+data/
 
 # Reconciliation query result exports
 reconciliation/source_results/*
 !reconciliation/source_results/.gitkeep
 reconciliation/target_results/*
 !reconciliation/target_results/.gitkeep
+reconciliation/comparison_results/*
+!reconciliation/comparison_results/.gitkeep
+reconciliation/reconciliation_report.md
+
+# Regression test reports
+test_results/*
+!test_results/.gitkeep
+
+# Generated migration documentation (regenerate with: uv run python -m documentation)
+documentation/*
+!documentation/.gitkeep
 
 # Empty dirs for generated artifacts
 src/synthetic_data_gen/.gitkeep
-
-# Empty root placeholder dirs
-/source_files_for_migration/
-/target_files_migration/

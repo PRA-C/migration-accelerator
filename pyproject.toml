@@ -26,4 +26,4 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["accelarator*", "accelerator*", "reconciliation*"]
+include = ["accelarator*", "reconciliation*", "test_generator*", "documentation*"]

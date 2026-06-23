@@ -1,10 +1,10 @@
--- DUCKDB: Signup cohort retention and repeat purchase analysis
+-- TERADATA: Signup cohort retention and repeat purchase analysis
 -- Tables: customers, orders (from input_schema)
 
 WITH cohort_base AS (
     SELECT
         c.customer_id,
-        date_trunc('month', c.signup_date) AS signup_cohort,
+        TRUNC(c.signup_date, 'MM') AS signup_cohort,
         c.country,
         MIN(o.order_date) AS first_purchase_date,
         MAX(o.order_date) AS last_purchase_date,
@@ -14,8 +14,8 @@ WITH cohort_base AS (
     LEFT JOIN orders o
         ON c.customer_id = o.customer_id
         AND o.status IN ('COMPLETED', 'SHIPPED', 'DELIVERED')
-    WHERE c.signup_date >= current_date - INTERVAL '36 months'
-    GROUP BY 1, 2, 3
+    WHERE c.signup_date >= ADD_MONTHS(CURRENT_DATE, -36)
+    GROUP BY c.customer_id, TRUNC(c.signup_date, 'MM'), c.country
 ),
 cohort_summary AS (
     SELECT
@@ -32,7 +32,7 @@ cohort_summary AS (
             END
         ) AS avg_days_to_first_order
     FROM cohort_base
-    GROUP BY 1, 2
+    GROUP BY signup_cohort, country
 )
 SELECT
     signup_cohort,

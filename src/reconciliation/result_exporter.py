@@ -11,7 +11,7 @@ import pandas as pd
 
 from accelarator.gcp.client import get_bigquery_client
 from accelarator.gcp.config import load_gcp_config
-from accelarator.source.duckdb_store import SOURCE_DB_PATH, get_source_connection
+from accelarator.source.teradata_store import run_teradata_query
 
 RECON_SOURCE_RESULTS_DIR = Path("reconciliation/source_results")
 RECON_TARGET_RESULTS_DIR = Path("reconciliation/target_results")
@@ -39,14 +39,8 @@ def _run_dir(base: Path, run_id: int) -> Path:
     return path
 
 
-def execute_duckdb_query(sql: str, schema_name: str, db_path: str = SOURCE_DB_PATH) -> pd.DataFrame:
-    query = _clean_sql(sql)
-    conn = get_source_connection(db_path)
-    try:
-        conn.execute(f"USE {schema_name}")
-        return conn.execute(query).fetchdf()
-    finally:
-        conn.close()
+def execute_teradata_query(sql: str, database: str) -> pd.DataFrame:
+    return run_teradata_query(_clean_sql(sql), database=database)
 
 
 def execute_bigquery_query(sql: str, dataset_id: str) -> pd.DataFrame:
@@ -72,9 +66,9 @@ def export_query_result(
 ) -> ExportedResult:
     """Execute SQL and write CSV + metadata JSON under reconciliation/."""
     if side == "source":
-        if source_type.lower() != "duckdb":
+        if source_type.lower() != "teradata":
             raise ValueError(f"Unsupported source type for export: {source_type}")
-        frame = execute_duckdb_query(sql, schema_name)
+        frame = execute_teradata_query(sql, schema_name)
         base_dir = RECON_SOURCE_RESULTS_DIR
     elif side == "target":
         if target_type.lower() != "bigquery":

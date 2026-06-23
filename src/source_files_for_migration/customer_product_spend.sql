@@ -1,4 +1,4 @@
--- DUCKDB: Customer orders matched to product catalog by price tier
+-- TERADATA: Customer orders matched to product catalog by price tier
 -- Tables: customers, orders, products (from input_schema)
 
 WITH order_product_match AS (
@@ -45,5 +45,5 @@ SELECT
         ELSE 'TIER_MATCH'
     END AS match_quality
 FROM order_product_match
-QUALIFY price_match_rank = 1
+WHERE price_match_rank = 1
 ORDER BY country, order_date DESC, order_amount DESC;

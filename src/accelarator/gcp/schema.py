@@ -10,15 +10,25 @@ from sqlglot import exp
 
 from accelarator.data_gen.engine import read_ddl_files
 
+from accelarator.source.teradata_config import INPUT_DDL_DIALECT
+
 from .config import DEFAULT_MIGRATION_TABLES, INPUT_SCHEMA_DIR
 
 
-def table_name_from_ddl(ddl: str) -> str:
-    parsed = sqlglot.parse_one(ddl, read="duckdb")
+def table_name_from_ddl(ddl: str, dialect: str | None = None) -> str:
+    dialect = dialect or INPUT_DDL_DIALECT
+    parsed = sqlglot.parse_one(ddl, read=dialect)
     table = parsed.find(exp.Table)
     if not table or not table.name:
         raise ValueError("Could not extract table name from DDL")
     return table.name
+
+
+def _sanitize_bigquery_ddl(sql: str) -> str:
+    """Fix sqlglot output that BigQuery rejects (e.g. DATETIME(0))."""
+    sql = re.sub(r"\bDATETIME\(\d+\)", "DATETIME", sql, flags=re.IGNORECASE)
+    sql = re.sub(r"\bTIMESTAMP\(\d+\)", "TIMESTAMP", sql, flags=re.IGNORECASE)
+    return sql
 
 
 def ddl_to_bigquery_create(
@@ -26,12 +36,13 @@ def ddl_to_bigquery_create(
     project_id: str,
     dataset_id: str,
 ) -> str:
-    """Convert DuckDB-style input DDL to a qualified BigQuery CREATE OR REPLACE TABLE."""
+    """Convert input DDL to a qualified BigQuery CREATE OR REPLACE TABLE."""
     table_name = table_name_from_ddl(ddl)
-    bq_ddl = sqlglot.transpile(ddl, read="duckdb", write="bigquery")[0]
+    bq_ddl = sqlglot.transpile(ddl, read=INPUT_DDL_DIALECT, write="bigquery")[0]
+    bq_ddl = _sanitize_bigquery_ddl(bq_ddl)
     qualified = f"`{project_id}.{dataset_id}.{table_name}`"
     return re.sub(
-        r"^CREATE TABLE\s+\w+",
+        r"^CREATE (?:MULTISET |SET )?TABLE\s+\w+",
         f"CREATE OR REPLACE TABLE {qualified}",
         bq_ddl,
         count=1,

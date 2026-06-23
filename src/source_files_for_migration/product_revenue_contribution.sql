@@ -1,4 +1,4 @@
--- DUCKDB: Product catalog contribution vs order revenue bands
+-- TERADATA: Product catalog contribution vs order revenue bands
 -- Tables: customers, orders, products (from input_schema)
 
 WITH product_tiers AS (
@@ -12,7 +12,8 @@ WITH product_tiers AS (
             WHEN price BETWEEN 200 AND 500 THEN 'PREMIUM'
             ELSE 'LUXURY'
         END AS price_tier,
-        NTILE(4) OVER (ORDER BY price) AS price_quartile
+        (CAST(ROW_NUMBER() OVER (ORDER BY price) AS INTEGER) - 1)
+            * 4 / COUNT(*) OVER () + 1 AS price_quartile
     FROM products
 ),
 order_tiers AS (
@@ -47,5 +48,5 @@ SELECT
 FROM product_tiers pt
 LEFT JOIN order_tiers ot
     ON pt.price_tier = ot.order_tier
-GROUP BY 1, 2
+GROUP BY pt.price_tier, pt.price_quartile
 ORDER BY pt.price_quartile;

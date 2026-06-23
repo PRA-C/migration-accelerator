@@ -89,17 +89,16 @@ def select_source_database() -> SourceDatabase:
         "4": SourceDatabase.NETEZZA,
         "5": SourceDatabase.POSTGRESQL,
         "6": SourceDatabase.MYSQL,
-        "7": SourceDatabase.DUCKDB,
     }
     
     for key, db in source_options.items():
         print(f"{key}. {db.value.upper()}")
     
     while True:
-        choice = input("\nSelect source (1-7): ").strip()
+        choice = input("\nSelect source (1-6): ").strip()
         if choice in source_options:
             return source_options[choice]
-        print("❌ Invalid choice. Please select 1-7")
+        print("❌ Invalid choice. Please select 1-6")
 
 
 def select_target_database() -> TargetDatabase:

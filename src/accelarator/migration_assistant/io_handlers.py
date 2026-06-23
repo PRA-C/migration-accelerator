@@ -30,7 +30,6 @@ class MigrationPattern(Enum):
 
 class SourceDatabase(Enum):
     """Source databases - what we're migrating FROM"""
-    DUCKDB = "duckdb"
     TERADATA = "teradata"
     ORACLE = "oracle"
     SQL_SERVER = "mssql"

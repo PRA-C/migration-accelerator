@@ -1,4 +1,4 @@
-"""DuckDB metadata store for migration and synthetic data run history."""
+"""DuckDB metadata store for migration and synthetic data run history (local only)."""
 
 from __future__ import annotations
 
@@ -43,6 +43,8 @@ CREATE TABLE IF NOT EXISTS migration_runs (
     target_schema VARCHAR,
     source_result_path VARCHAR,
     target_result_path VARCHAR,
+    recon_passed BOOLEAN,
+    recon_result_path VARCHAR,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 """
@@ -82,8 +84,12 @@ def init_metadata_db(db_path: str = METADATA_DB_PATH) -> Path:
             "target_schema",
             "source_result_path",
             "target_result_path",
+            "recon_result_path",
         ):
             conn.execute(f"ALTER TABLE migration_runs ADD COLUMN IF NOT EXISTS {col} VARCHAR")
+        conn.execute(
+            "ALTER TABLE migration_runs ADD COLUMN IF NOT EXISTS recon_passed BOOLEAN"
+        )
 
     return path
 
@@ -159,6 +165,7 @@ def list_migration_runs(
             status, success, validation_passed, recon_ind,
             source_schema, target_schema,
             source_result_path, target_result_path,
+            recon_passed, recon_result_path,
             created_at
         FROM migration_runs
     """
@@ -174,6 +181,7 @@ def list_migration_runs(
             "status", "success", "validation_passed", "recon_ind",
             "source_schema", "target_schema",
             "source_result_path", "target_result_path",
+            "recon_passed", "recon_result_path",
             "created_at",
         ]
         return [dict(zip(columns, row)) for row in rows]
@@ -192,6 +200,7 @@ def get_migration_run(run_id: int, db_path: str = METADATA_DB_PATH) -> dict | No
                 error_message,
                 source_schema, target_schema,
                 source_result_path, target_result_path,
+                recon_passed, recon_result_path,
                 created_at
             FROM migration_runs
             WHERE run_id = ?
@@ -208,6 +217,7 @@ def get_migration_run(run_id: int, db_path: str = METADATA_DB_PATH) -> dict | No
             "error_message",
             "source_schema", "target_schema",
             "source_result_path", "target_result_path",
+            "recon_passed", "recon_result_path",
             "created_at",
         ]
         return dict(zip(columns, row))
@@ -221,6 +231,8 @@ def update_run_recon_metadata(
     target_schema: str | None = None,
     source_result_path: str | None = None,
     target_result_path: str | None = None,
+    recon_passed: bool | None = None,
+    recon_result_path: str | None = None,
     db_path: str = METADATA_DB_PATH,
 ) -> None:
     """Update reconciliation fields on a migration run."""
@@ -233,6 +245,8 @@ def update_run_recon_metadata(
         "target_schema": target_schema,
         "source_result_path": source_result_path,
         "target_result_path": target_result_path,
+        "recon_passed": recon_passed,
+        "recon_result_path": recon_result_path,
     }
     for column, value in field_map.items():
         if value is not None:
@@ -304,3 +318,30 @@ def log_synthetic_data_result(
         ).fetchone()
 
     return int(row[0])
+
+
+def clear_metadata_tables(
+    *,
+    migration_runs: bool = True,
+    synthetic_data_runs: bool = True,
+    db_path: str = METADATA_DB_PATH,
+) -> dict[str, int]:
+    """Delete all rows from metadata tables and reset ID sequences."""
+    deleted: dict[str, int] = {}
+
+    with _connect(db_path) as conn:
+        if migration_runs:
+            count = conn.execute("SELECT COUNT(*) FROM migration_runs").fetchone()[0]
+            conn.execute("DELETE FROM migration_runs")
+            conn.execute("DROP SEQUENCE IF EXISTS migration_runs_id_seq")
+            conn.execute("CREATE SEQUENCE migration_runs_id_seq START 1")
+            deleted["migration_runs"] = int(count)
+
+        if synthetic_data_runs:
+            count = conn.execute("SELECT COUNT(*) FROM synthetic_data_runs").fetchone()[0]
+            conn.execute("DELETE FROM synthetic_data_runs")
+            conn.execute("DROP SEQUENCE IF EXISTS synthetic_data_runs_id_seq")
+            conn.execute("CREATE SEQUENCE synthetic_data_runs_id_seq START 1")
+            deleted["synthetic_data_runs"] = int(count)
+
+    return deleted

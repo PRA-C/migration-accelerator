@@ -1,1 +1,0 @@
-"""Migration assistant package alias."""
