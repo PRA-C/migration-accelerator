@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterator
 
-from .graph import build_pipeline_graph
+from .graph import GRAPH_NODE_ORDER, build_pipeline_graph
 from .registry import AGENT_BY_NODE, AGENT_PIPELINE
 from .runner import PIPELINE_REPORT_PATH, _default_state, _write_pipeline_report
 from .state import AgentMessage, PipelineState
@@ -27,6 +27,7 @@ class StreamEvent:
     status_markdown: str
     chat_chunk: str
     done: bool = False
+    node_status: str = "complete"  # "starting" | "complete"
     final_state: PipelineState | None = None
     report_path: str = ""
 
@@ -129,8 +130,24 @@ def format_final_chat_summary(state: PipelineState, report_path: Path) -> str:
     return "\n".join(lines)
 
 
+def _yield_node_start(
+    state: PipelineState,
+    node_name: str,
+    chat_parts: list[str],
+) -> StreamEvent:
+    label = NODE_LABELS.get(node_name, node_name)
+    chat_parts.append(f"\n---\n⏳ **{label}** running…\n")
+    return StreamEvent(
+        phase="running",
+        active_node=node_name,
+        node_status="starting",
+        status_markdown=format_live_status(state, active_node=node_name, running=True),
+        chat_chunk="".join(chat_parts),
+    )
+
+
 def stream_pipeline(**config: Any) -> Iterator[StreamEvent]:
-    """Yield real-time events as each LangGraph node completes."""
+    """Yield real-time events as each LangGraph node runs and completes."""
     graph = build_pipeline_graph()
     state = _default_state(**config)
     chat_parts: list[str] = ["🚀 **Starting migration agent pipeline…**\n"]
@@ -138,9 +155,13 @@ def stream_pipeline(**config: Any) -> Iterator[StreamEvent]:
     yield StreamEvent(
         phase="start",
         active_node="",
+        node_status="starting",
         status_markdown=format_live_status(state, running=True),
         chat_chunk="".join(chat_parts),
     )
+
+    if GRAPH_NODE_ORDER:
+        yield _yield_node_start(state, GRAPH_NODE_ORDER[0], chat_parts)
 
     for event in graph.stream(state, stream_mode="updates"):
         for node_name, patch in event.items():
@@ -153,9 +174,17 @@ def stream_pipeline(**config: Any) -> Iterator[StreamEvent]:
             yield StreamEvent(
                 phase=state.get("phase", ""),
                 active_node=node_name,
+                node_status="complete",
                 status_markdown=format_live_status(state, active_node=node_name),
                 chat_chunk="".join(chat_parts),
             )
+
+            try:
+                idx = GRAPH_NODE_ORDER.index(node_name)
+            except ValueError:
+                idx = -1
+            if idx >= 0 and idx + 1 < len(GRAPH_NODE_ORDER):
+                yield _yield_node_start(state, GRAPH_NODE_ORDER[idx + 1], chat_parts)
 
     report_path = _write_pipeline_report(state)
     chat_parts.append("\n" + format_final_chat_summary(state, report_path))

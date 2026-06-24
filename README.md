@@ -77,13 +77,34 @@ uv run python -m agents --list-agents
 uv run python -m agents --skip-provision --skip-migrate --no-llm
 ```
 
-### Gradio web UI (chat + live agent progress)
+### Web UI (React + FastAPI)
+
+**Development** — run API and frontend in two terminals:
+
+```bash
+# Terminal 1 — API on http://127.0.0.1:8000
+uv run python -m api
+
+# Terminal 2 — React dev server on http://127.0.0.1:5173 (proxies /api)
+cd frontend && npm install && npm run dev
+```
+
+**Production** — build the frontend and serve it from the API:
+
+```bash
+cd frontend && npm install && npm run build
+uv run python -m api
+```
+
+Open http://127.0.0.1:8000 for the dashboard, operations (SSE pipeline), AI chat, migrations, SQL studio, and reports.
+
+### Legacy Gradio UI
 
 ```bash
 uv run python app.py
 ```
 
-Opens a browser chat where you can run the full pipeline, migrate, reconcile, test, and generate docs with real-time agent activity.
+Deprecated in favor of the React + FastAPI UI above.
 
 ## Project structure
 
@@ -95,6 +116,8 @@ migration-accelerator/
 │   ├── test_generator/           # Regression test suite
 │   ├── documentation/            # Doc + lineage generator
 │   ├── agents/                   # LangGraph agent pipeline orchestrator
+│   ├── api/                      # FastAPI REST + SSE backend
+│   ├── frontend/                 # React + Vite UI (npm)
 │   ├── input_schema/             # Base table DDL (Teradata)
 │   └── source_files_for_migration/  # Input migration SQL
 ├── scripts/                      # Setup and batch utilities

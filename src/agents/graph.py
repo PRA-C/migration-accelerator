@@ -15,6 +15,16 @@ from .nodes import (
 )
 from .state import PipelineState
 
+GRAPH_NODE_ORDER: tuple[str, ...] = (
+    "environment_provisioner",
+    "migration_intake",
+    "migration_transpiler",
+    "recon_preparer",
+    "recon_comparator",
+    "regression_runner",
+    "documentation_generator",
+)
+
 
 def build_pipeline_graph():
     """

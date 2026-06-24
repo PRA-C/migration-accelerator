@@ -47,3 +47,8 @@ documentation/*
 
 # Empty dirs for generated artifacts
 src/synthetic_data_gen/.gitkeep
+
+# React frontend
+frontend/node_modules/
+frontend/dist/
+debug-*.log
