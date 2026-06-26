@@ -1,6 +1,8 @@
 import type { AgentStep } from "../types";
+import { DB_SHORT } from "../types";
 
 const SHORT: Record<string, string> = {
+  synthetic_data_generator: "Synth",
   environment_provisioner: "Provision",
   migration_intake: "Intake",
   migration_transpiler: "Transpile",
@@ -18,12 +20,25 @@ type Props = {
   activeNode: string;
   running: boolean;
   phase: string;
+  sourceDatabase: string;
+  targetDatabase: string;
+  sourceLabel: string;
+  targetLabel: string;
 };
 
-export function DataFlowCanvas({ steps, activeNode, running, phase }: Props) {
+export function DataFlowCanvas({
+  steps,
+  activeNode,
+  running,
+  phase,
+  sourceDatabase,
+  targetDatabase,
+  sourceLabel,
+  targetLabel,
+}: Props) {
   const doneCount = steps.filter((s) => s.state === "done").length;
   const hasActive = steps.some((s) => s.state === "active") || (!!activeNode && running);
-  const total = steps.length || 7;
+  const total = steps.length || 8;
   const progress = Math.round(
     ((doneCount + (running && hasActive ? 0.5 : 0)) / total) * 100
   );
@@ -47,8 +62,10 @@ export function DataFlowCanvas({ steps, activeNode, running, phase }: Props) {
 
       <div className="flow-lane">
         <div className={`source-node ${running ? "active" : ""}`}>
-          <div className="db-icon teradata">TD</div>
-          <div className="node-label">Teradata</div>
+          <div className={`db-icon ${sourceDatabase}`}>
+            {DB_SHORT[sourceDatabase] ?? sourceLabel.slice(0, 2).toUpperCase()}
+          </div>
+          <div className="node-label">{sourceLabel}</div>
           <div className="node-sub">Source warehouse</div>
         </div>
 
@@ -70,7 +87,11 @@ export function DataFlowCanvas({ steps, activeNode, running, phase }: Props) {
               <div
                 key={s.node_id}
                 className={`agent-node ${s.state} ${s.uses_llm ? "llm" : ""}`}
-                title={s.name}
+                title={
+                  s.uses_llm
+                    ? `${s.name} — uses LLM when "LLM agents" is enabled`
+                    : s.name
+                }
               >
                 <div className="agent-ring">
                   <span className="agent-idx">{s.index}</span>
@@ -94,8 +115,10 @@ export function DataFlowCanvas({ steps, activeNode, running, phase }: Props) {
         </div>
 
         <div className={`target-node ${doneCount === steps.length && steps.length > 0 ? "landed" : running ? "receiving" : ""}`}>
-          <div className="db-icon bigquery">BQ</div>
-          <div className="node-label">BigQuery</div>
+          <div className={`db-icon ${targetDatabase}`}>
+            {DB_SHORT[targetDatabase] ?? targetLabel.slice(0, 2).toUpperCase()}
+          </div>
+          <div className="node-label">{targetLabel}</div>
           <div className="node-sub">Target lakehouse</div>
           {running && <div className="ingest-ring" />}
         </div>

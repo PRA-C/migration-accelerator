@@ -10,12 +10,19 @@ from accelarator.migration_assistant.io_handlers import (
     CodeType,
     MigrationRequest,
     OutputFormat,
-    SourceDatabase,
-    TargetDatabase,
     read_source_migration_files,
 )
 from accelarator.migration_assistant.transpiler import transpile_request
 
+from .migration_profile import (
+    display_name,
+    normalize_source,
+    normalize_target,
+    parse_source_database,
+    parse_target_database,
+    source_to_dialect,
+    supports_live_provision,
+)
 from .state import PipelineState, agent_message
 
 
@@ -27,8 +34,62 @@ def _all_run_ids() -> list[int]:
     return [int(r["run_id"]) for r in list_migration_runs()]
 
 
+def synthetic_data_generator(state: PipelineState) -> dict[str, Any]:
+    """Agent 1: generate synthetic CSVs from input_schema DDL."""
+    t0 = time.perf_counter()
+    if state.get("skip_synthetic"):
+        return {
+            "phase": "provision",
+            "agent_log": [
+                agent_message(
+                    "SyntheticDataGenerator",
+                    "skipped",
+                    "Skipped (--skip-synthetic)",
+                    duration_ms=_elapsed_ms(t0),
+                )
+            ],
+        }
+
+    try:
+        from accelarator.data_gen.defaults import generate_migration_tables
+        from accelarator.gcp.config import INPUT_SCHEMA_DIR, SYNTHETIC_DATA_DIR
+
+        source = normalize_source(state.get("source_database"))
+        dialect = source_to_dialect(source)
+        results = generate_migration_tables(dialect=dialect)
+        if not results:
+            raise RuntimeError(f"No tables generated from {INPUT_SCHEMA_DIR}")
+
+        tables = ", ".join(sorted(results))
+        return {
+            "phase": "provision",
+            "synthetic_tables_generated": len(results),
+            "agent_log": [
+                agent_message(
+                    "SyntheticDataGenerator",
+                    "success",
+                    f"Generated {len(results)} table(s) [{display_name(source)} DDL] → {SYNTHETIC_DATA_DIR}: {tables}",
+                    duration_ms=_elapsed_ms(t0),
+                )
+            ],
+        }
+    except Exception as exc:
+        return {
+            "phase": "provision",
+            "errors": [f"SyntheticDataGenerator: {exc}"],
+            "agent_log": [
+                agent_message(
+                    "SyntheticDataGenerator",
+                    "failed",
+                    str(exc),
+                    duration_ms=_elapsed_ms(t0),
+                )
+            ],
+        }
+
+
 def environment_provisioner(state: PipelineState) -> dict[str, Any]:
-    """Agent 1: provision Teradata + BigQuery schemas."""
+    """Agent 2: provision Teradata + BigQuery schemas."""
     t0 = time.perf_counter()
     if state.get("skip_provision"):
         return {
@@ -38,6 +99,27 @@ def environment_provisioner(state: PipelineState) -> dict[str, Any]:
                     "EnvironmentProvisioner",
                     "skipped",
                     "Skipped (--skip-provision)",
+                    duration_ms=_elapsed_ms(t0),
+                )
+            ],
+        }
+
+    source = normalize_source(state.get("source_database"))
+    target = normalize_target(state.get("target_database"))
+    src_label = display_name(source)
+    tgt_label = display_name(target)
+
+    if not supports_live_provision(source, target):
+        return {
+            "phase": "intake",
+            "agent_log": [
+                agent_message(
+                    "EnvironmentProvisioner",
+                    "skipped",
+                    (
+                        f"Live provision not implemented for {src_label} → {tgt_label}; "
+                        "transpile/recon may still run. Supported: Teradata → BigQuery."
+                    ),
                     duration_ms=_elapsed_ms(t0),
                 )
             ],
@@ -55,7 +137,7 @@ def environment_provisioner(state: PipelineState) -> dict[str, Any]:
                 agent_message(
                     "EnvironmentProvisioner",
                     "success",
-                    f"Provisioned Teradata `{source_schema}` and BigQuery `{target_schema}`",
+                    f"Provisioned {src_label} `{source_schema}` and {tgt_label} `{target_schema}`",
                     duration_ms=_elapsed_ms(t0),
                 )
             ],
@@ -135,6 +217,8 @@ def migration_transpiler(state: PipelineState) -> dict[str, Any]:
 
     init_metadata_db()
     files = read_source_migration_files()
+    source_db = parse_source_database(state.get("source_database", "teradata"))
+    target_db = parse_target_database(state.get("target_database", "bigquery"))
     succeeded = 0
     failed = 0
     run_ids: list[int] = []
@@ -142,8 +226,8 @@ def migration_transpiler(state: PipelineState) -> dict[str, Any]:
 
     for filename, code in sorted(files.items()):
         request = MigrationRequest(
-            source=SourceDatabase.TERADATA,
-            target=TargetDatabase.BIGQUERY,
+            source=source_db,
+            target=target_db,
             output_format=OutputFormat.TARGET_SQL_ONLY,
             code=code,
             code_type=CodeType.SQL_QUERY,

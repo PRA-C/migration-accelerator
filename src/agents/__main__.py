@@ -2,13 +2,14 @@
 Run the full migration accelerator agent pipeline (LangGraph).
 
 Agents execute sequentially:
-  1. EnvironmentProvisioner
-  2. MigrationIntake
-  3. MigrationTranspiler (Data Engineer + Data Manager LLM loop)
-  4. ReconPreparer
-  5. ReconComparator + ReconAnalyst
-  6. RegressionRunner + QAAnalyst
-  7. DocumentationGenerator + DocWriter
+  1. SyntheticDataGenerator
+  2. EnvironmentProvisioner
+  3. MigrationIntake
+  4. MigrationTranspiler (Data Engineer + Data Manager LLM loop)
+  5. ReconPreparer
+  6. ReconComparator + ReconAnalyst
+  7. RegressionRunner + QAAnalyst
+  8. DocumentationGenerator + DocWriter
 
 Usage:
     uv run python -m agents
@@ -35,6 +36,11 @@ def main(argv: list[str] | None = None) -> int:
         description="Run migration accelerator agents sequentially via LangGraph"
     )
     parser.add_argument("--no-llm", action="store_true", help="Disable all LLM agents")
+    parser.add_argument(
+        "--skip-synthetic",
+        action="store_true",
+        help="Skip synthetic CSV generation from input_schema",
+    )
     parser.add_argument("--skip-provision", action="store_true", help="Skip schema provisioning")
     parser.add_argument("--skip-migrate", action="store_true", help="Skip migration transpilation")
     parser.add_argument("--skip-recon", action="store_true", help="Skip reconciliation prep/compare")
@@ -60,6 +66,7 @@ def main(argv: list[str] | None = None) -> int:
 
     final_state, report_path = run_pipeline(
         use_llm=not args.no_llm,
+        skip_synthetic=args.skip_synthetic,
         skip_provision=args.skip_provision,
         skip_migrate=args.skip_migrate,
         skip_recon=args.skip_recon,

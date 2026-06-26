@@ -17,6 +17,7 @@ def _default_state(**overrides: Any) -> PipelineState:
     base: PipelineState = {
         "phase": "start",
         "use_llm": True,
+        "skip_synthetic": False,
         "skip_provision": False,
         "skip_migrate": False,
         "skip_recon": False,
@@ -24,6 +25,8 @@ def _default_state(**overrides: Any) -> PipelineState:
         "skip_docs": False,
         "include_integration_tests": False,
         "include_slow_tests": False,
+        "source_database": "teradata",
+        "target_database": "bigquery",
         "errors": [],
         "agent_log": [],
     }
@@ -72,6 +75,7 @@ def _write_pipeline_report(final_state: PipelineState) -> Path:
 
     lines.extend(["## Summary", ""])
     summary_fields = [
+        ("Synthetic tables generated", final_state.get("synthetic_tables_generated")),
         ("Migrations succeeded", final_state.get("migration_succeeded")),
         ("Migrations failed", final_state.get("migration_failed")),
         ("Recon prepared", final_state.get("recon_prepared")),

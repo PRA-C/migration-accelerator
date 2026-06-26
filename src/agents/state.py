@@ -22,6 +22,7 @@ class PipelineState(TypedDict, total=False):
 
     phase: str
     use_llm: bool
+    skip_synthetic: bool
     skip_provision: bool
     skip_migrate: bool
     skip_recon: bool
@@ -29,8 +30,11 @@ class PipelineState(TypedDict, total=False):
     skip_docs: bool
     include_integration_tests: bool
     include_slow_tests: bool
+    source_database: str
+    target_database: str
     source_schema: str
     target_schema: str
+    synthetic_tables_generated: int
     migration_count: int
     migration_succeeded: int
     migration_failed: int

@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 class PipelineOptionsModel(BaseModel):
     use_llm: bool = True
+    skip_synthetic: bool = False
     skip_provision: bool = False
     skip_migrate: bool = False
     skip_recon: bool = False
@@ -14,6 +15,8 @@ class PipelineOptionsModel(BaseModel):
     skip_docs: bool = False
     integration_tests: bool = False
     preset: str = "full"
+    source_database: str = "teradata"
+    target_database: str = "bigquery"
 
 
 class ChatMessageModel(BaseModel):
@@ -30,3 +33,5 @@ class ChatRequest(BaseModel):
 class TranspileRequest(BaseModel):
     filename: str | None = None
     sql: str | None = None
+    source_database: str = "teradata"
+    target_database: str = "bigquery"

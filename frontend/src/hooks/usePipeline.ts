@@ -3,7 +3,7 @@ import { api } from "../api";
 import type { AgentStep, FeedEvent, PipelineOptions } from "../types";
 import { buildStepsFromProgress, GRAPH_PIPELINE } from "../types";
 
-const FIRST_NODE = GRAPH_PIPELINE[0]?.node_id ?? "environment_provisioner";
+const FIRST_NODE = GRAPH_PIPELINE[0]?.node_id ?? "synthetic_data_generator";
 
 let feedSeq = 0;
 
@@ -134,11 +134,11 @@ export function usePipeline(options: PipelineOptions, onRefresh: () => Promise<v
     [options, applyEvent, loadSteps, onRefresh]
   );
 
-  const initFeed = useCallback(() => {
+  const initFeed = useCallback((source = "Teradata", target = "BigQuery") => {
     pushFeed(setFeed, {
       kind: "info",
       title: "Control plane online",
-      detail: "Teradata → LangGraph agents → BigQuery",
+      detail: `${source} → LangGraph agents → ${target}`,
     });
   }, []);
 

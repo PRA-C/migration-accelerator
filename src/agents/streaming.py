@@ -90,6 +90,7 @@ def format_live_status(
 
     summary_bits: list[str] = []
     for label, key in (
+        ("synthetic tables", "synthetic_tables_generated"),
         ("migrations ok", "migration_succeeded"),
         ("migrations failed", "migration_failed"),
         ("recon passed", "compare_passed"),

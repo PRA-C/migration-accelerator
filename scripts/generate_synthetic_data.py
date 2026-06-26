@@ -4,23 +4,13 @@ from __future__ import annotations
 
 import sys
 
-from accelarator.data_gen.engine import process_all_tables
-from accelarator.source.teradata_config import INPUT_DDL_DIALECT
-
-DEFAULT_ROW_COUNTS = {
-    "customers": 3000,
-    "orders": 12000,
-    "products": 100,
-}
+from accelarator.data_gen.defaults import generate_migration_tables
 
 
 def main() -> int:
-    process_all_tables(
-        tables_to_process=["customers", "orders", "products"],
-        row_config=DEFAULT_ROW_COUNTS,
-        dialect=INPUT_DDL_DIALECT,
-        mappings_file="src/input_schema/column_mappings.yaml",
-    )
+    results = generate_migration_tables()
+    if not results:
+        return 1
     return 0
 
 

@@ -17,10 +17,18 @@ class AgentSpec:
 
 AGENT_PIPELINE: tuple[AgentSpec, ...] = (
     AgentSpec(
+        node_id="synthetic_data_generator",
+        name="SyntheticDataGenerator",
+        role="tool",
+        description="Generate synthetic CSVs from input_schema DDL into synthetic_data_gen/.",
+        uses_llm=False,
+        wraps="accelarator.data_gen.defaults.generate_migration_tables",
+    ),
+    AgentSpec(
         node_id="environment_provisioner",
         name="EnvironmentProvisioner",
         role="tool",
-        description="Provision Teradata source tables and BigQuery target dataset with synthetic data.",
+        description="Provision Teradata source tables and BigQuery target dataset from synthetic CSVs.",
         uses_llm=False,
         wraps="reconciliation.schema_provisioner.provision_recon_schemas",
     ),
@@ -103,3 +111,15 @@ AGENT_PIPELINE: tuple[AgentSpec, ...] = (
 
 
 AGENT_BY_NODE: dict[str, AgentSpec] = {spec.node_id: spec for spec in AGENT_PIPELINE}
+
+# LangGraph nodes that invoke an LLM (directly or via bundled analyst sub-agent).
+GRAPH_NODE_USES_LLM: frozenset[str] = frozenset({
+    "migration_transpiler",       # MigrationTranspiler
+    "recon_comparator",             # + ReconAnalyst report analysis
+    "regression_runner",            # + QAAnalyst failure analysis
+    "documentation_generator",      # + DocWriter executive summary
+})
+
+
+def graph_node_uses_llm(node_id: str) -> bool:
+    return node_id in GRAPH_NODE_USES_LLM

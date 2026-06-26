@@ -8,6 +8,9 @@ type Props = {
   setSourceSql: (s: string) => void;
   targetSql: string;
   status: string;
+  sourceLabel: string;
+  targetLabel: string;
+  busy?: boolean;
   onLoad: () => void;
   onTranspile: () => void;
 };
@@ -20,6 +23,9 @@ export function SqlWorkbench({
   setSourceSql,
   targetSql,
   status,
+  sourceLabel,
+  targetLabel,
+  busy,
   onLoad,
   onTranspile,
 }: Props) {
@@ -31,18 +37,20 @@ export function SqlWorkbench({
             <option key={f} value={f}>{f}</option>
           ))}
         </select>
-        <button type="button" className="btn-ghost" onClick={onLoad}>Load file</button>
-        <button type="button" className="btn-glow" onClick={onTranspile}>Transpile →</button>
+        <button type="button" className="btn-ghost" onClick={onLoad} disabled={busy}>Load file</button>
+        <button type="button" className="btn-glow" onClick={onTranspile} disabled={busy}>
+          {busy ? "Transpiling…" : "Transpile →"}
+        </button>
         <span className="sql-status">{status}</span>
       </div>
       <div className="sql-panes">
         <div className="sql-pane">
-          <div className="pane-label teradata">Teradata source</div>
+          <div className="pane-label teradata">{sourceLabel} source</div>
           <textarea value={sourceSql} onChange={(e) => setSourceSql(e.target.value)} spellCheck={false} />
         </div>
         <div className="sql-arrow">⇄</div>
         <div className="sql-pane">
-          <div className="pane-label bigquery">BigQuery target</div>
+          <div className="pane-label bigquery">{targetLabel} target</div>
           <textarea readOnly value={targetSql} spellCheck={false} />
         </div>
       </div>

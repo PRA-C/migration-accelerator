@@ -10,7 +10,7 @@ from accelarator.metadata import get_migration_run, init_metadata_db, list_migra
 from accelarator.migration_assistant.io_handlers import read_source_migration_files
 
 from .graph import GRAPH_NODE_ORDER
-from .registry import AGENT_BY_NODE, AGENT_PIPELINE
+from .registry import AGENT_BY_NODE, AGENT_PIPELINE, graph_node_uses_llm
 
 
 def env_status() -> list[dict]:
@@ -74,7 +74,7 @@ def pipeline_steps(completed: list[str] | None = None, active: str = "") -> list
             "node_id": node_id,
             "name": spec.name if spec else node_id,
             "role": spec.role if spec else "tool",
-            "uses_llm": spec.uses_llm if spec else False,
+            "uses_llm": graph_node_uses_llm(node_id),
             "state": (
                 "done" if node_id in completed
                 else "active" if node_id == active

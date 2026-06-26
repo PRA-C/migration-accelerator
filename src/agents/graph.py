@@ -12,10 +12,12 @@ from .nodes import (
     recon_comparator,
     recon_preparer,
     regression_runner,
+    synthetic_data_generator,
 )
 from .state import PipelineState
 
 GRAPH_NODE_ORDER: tuple[str, ...] = (
+    "synthetic_data_generator",
     "environment_provisioner",
     "migration_intake",
     "migration_transpiler",
@@ -30,12 +32,13 @@ def build_pipeline_graph():
     """
     Sequential agent pipeline:
 
-    EnvironmentProvisioner → MigrationIntake → MigrationTranspiler →
-    ReconPreparer → ReconComparator (+ ReconAnalyst) →
+    SyntheticDataGenerator → EnvironmentProvisioner → MigrationIntake →
+    MigrationTranspiler → ReconPreparer → ReconComparator (+ ReconAnalyst) →
     RegressionRunner (+ QAAnalyst) → DocumentationGenerator (+ DocWriter)
     """
     graph = StateGraph(PipelineState)
 
+    graph.add_node("synthetic_data_generator", synthetic_data_generator)
     graph.add_node("environment_provisioner", environment_provisioner)
     graph.add_node("migration_intake", migration_intake)
     graph.add_node("migration_transpiler", migration_transpiler)
@@ -44,7 +47,8 @@ def build_pipeline_graph():
     graph.add_node("regression_runner", regression_runner)
     graph.add_node("documentation_generator", documentation_generator)
 
-    graph.add_edge(START, "environment_provisioner")
+    graph.add_edge(START, "synthetic_data_generator")
+    graph.add_edge("synthetic_data_generator", "environment_provisioner")
     graph.add_edge("environment_provisioner", "migration_intake")
     graph.add_edge("migration_intake", "migration_transpiler")
     graph.add_edge("migration_transpiler", "recon_preparer")

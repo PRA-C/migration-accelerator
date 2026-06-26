@@ -11,8 +11,6 @@ from accelarator.migration_assistant.io_handlers import (
     CodeType,
     MigrationRequest,
     OutputFormat,
-    SourceDatabase,
-    TargetDatabase,
     read_source_migration_files,
 )
 from accelarator.migration_assistant.transpiler import transpile_request
@@ -29,6 +27,7 @@ from .streaming import (
 @dataclass
 class PipelineOptions:
     use_llm: bool = True
+    skip_synthetic: bool = False
     skip_provision: bool = False
     skip_migrate: bool = False
     skip_recon: bool = False
@@ -36,6 +35,8 @@ class PipelineOptions:
     skip_docs: bool = False
     integration_tests: bool = False
     preset: str = "full"
+    source_database: str = "teradata"
+    target_database: str = "bigquery"
 
 
 def format_api_error(exc: Exception, *, context: str = "request") -> str:
@@ -91,15 +92,23 @@ def build_pipeline_config(
     intent_overrides: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     enable: dict[str, list[str]] = {
-        "full": ["skip_provision", "skip_migrate", "skip_recon", "skip_tests", "skip_docs"],
-        "provision": ["skip_provision"],
-        "migrate": ["skip_provision", "skip_migrate"],
+        "full": [
+            "skip_synthetic",
+            "skip_provision",
+            "skip_migrate",
+            "skip_recon",
+            "skip_tests",
+            "skip_docs",
+        ],
+        "provision": ["skip_synthetic", "skip_provision"],
+        "migrate": ["skip_synthetic", "skip_provision", "skip_migrate"],
         "recon": ["skip_recon"],
         "tests": ["skip_tests"],
         "docs": ["skip_docs"],
     }
     config: dict[str, Any] = {
         "use_llm": options.use_llm,
+        "skip_synthetic": True,
         "skip_provision": True,
         "skip_migrate": True,
         "skip_recon": True,
@@ -107,9 +116,13 @@ def build_pipeline_config(
         "skip_docs": True,
         "include_integration_tests": options.integration_tests,
         "include_slow_tests": options.integration_tests,
+        "source_database": options.source_database,
+        "target_database": options.target_database,
     }
     for key in enable.get(options.preset, enable["full"]):
         config[key] = False
+    if options.skip_synthetic:
+        config["skip_synthetic"] = True
     if options.skip_provision:
         config["skip_provision"] = True
     if options.skip_migrate:
@@ -134,6 +147,8 @@ def iter_pipeline_events(options: PipelineOptions) -> Iterator[dict[str, Any]]:
     yield {
         "type": "start",
         "preset": options.preset,
+        "source_database": options.source_database,
+        "target_database": options.target_database,
         "activity": format_live_status({"phase": "starting", "agent_log": [], "errors": []}),
         "completed_nodes": completed,
     }
@@ -204,6 +219,7 @@ def process_chat_message(
     if action == "pipeline" and overrides is not None:
         pipe_opts = PipelineOptions(
             use_llm=options.use_llm,
+            skip_synthetic=options.skip_synthetic,
             skip_provision=options.skip_provision,
             skip_migrate=options.skip_migrate,
             skip_recon=options.skip_recon,
@@ -211,6 +227,8 @@ def process_chat_message(
             skip_docs=options.skip_docs,
             integration_tests=options.integration_tests,
             preset=options.preset,
+            source_database=options.source_database,
+            target_database=options.target_database,
         )
         cfg = build_pipeline_config(pipe_opts, overrides)
         pipe_opts_dict = {**cfg}
@@ -251,14 +269,22 @@ def process_chat_message(
     yield {"type": "reply", "content": reply, "source": source}
 
 
-def transpile_sql_file(filename: str) -> tuple[str, str]:
+from .migration_profile import parse_source_database, parse_target_database
+
+
+def transpile_sql_file(
+    filename: str,
+    *,
+    source_database: str = "teradata",
+    target_database: str = "bigquery",
+) -> tuple[str, str]:
     files = read_source_migration_files()
     if not filename or filename not in files:
         return "", f"File not found: {filename}"
     try:
         req = MigrationRequest(
-            source=SourceDatabase.TERADATA,
-            target=TargetDatabase.BIGQUERY,
+            source=parse_source_database(source_database),
+            target=parse_target_database(target_database),
             output_format=OutputFormat.TARGET_SQL_ONLY,
             code=files[filename],
             code_type=CodeType.SQL_QUERY,
@@ -274,13 +300,18 @@ def transpile_sql_file(filename: str) -> tuple[str, str]:
     return out, status
 
 
-def transpile_sql_adhoc(sql: str) -> tuple[str, str]:
+def transpile_sql_adhoc(
+    sql: str,
+    *,
+    source_database: str = "teradata",
+    target_database: str = "bigquery",
+) -> tuple[str, str]:
     if not sql.strip():
-        return "", "Paste Teradata SQL first."
+        return "", "Paste source SQL first."
     try:
         req = MigrationRequest(
-            source=SourceDatabase.TERADATA,
-            target=TargetDatabase.BIGQUERY,
+            source=parse_source_database(source_database),
+            target=parse_target_database(target_database),
             output_format=OutputFormat.TARGET_SQL_ONLY,
             code=sql,
             code_type=CodeType.SQL_QUERY,

@@ -19,6 +19,7 @@ from sse_starlette.sse import EventSourceResponse
 from accelarator.metadata import init_metadata_db
 from agents.chat_service import PipelineOptions, iter_pipeline_events, process_chat_message
 from agents.chat_service import transpile_sql_adhoc, transpile_sql_file
+from agents.migration_profile import profile_catalog
 from agents.ui_api import (
     agent_catalog,
     dashboard_metrics,
@@ -58,6 +59,7 @@ def _startup() -> None:
 def _to_pipeline_options(m: PipelineOptionsModel) -> PipelineOptions:
     return PipelineOptions(
         use_llm=m.use_llm,
+        skip_synthetic=m.skip_synthetic,
         skip_provision=m.skip_provision,
         skip_migrate=m.skip_migrate,
         skip_recon=m.skip_recon,
@@ -65,12 +67,26 @@ def _to_pipeline_options(m: PipelineOptionsModel) -> PipelineOptions:
         skip_docs=m.skip_docs,
         integration_tests=m.integration_tests,
         preset=m.preset,
+        source_database=m.source_database,
+        target_database=m.target_database,
     )
+
+
+@app.get("/api/migration-profile")
+def migration_profile() -> dict:
+    return profile_catalog()
 
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"status": "ok", "service": "migration-accelerator"}
+    from agents.graph import GRAPH_NODE_ORDER
+
+    return {
+        "status": "ok",
+        "service": "migration-accelerator",
+        "first_pipeline_node": GRAPH_NODE_ORDER[0] if GRAPH_NODE_ORDER else "",
+        "pipeline_node_count": len(GRAPH_NODE_ORDER),
+    }
 
 
 @app.get("/api/dashboard")
@@ -120,10 +136,18 @@ def sql_file_content(filename: str) -> dict:
 @app.post("/api/sql/transpile")
 def transpile(body: TranspileRequest) -> dict:
     if body.filename:
-        out, status = transpile_sql_file(body.filename)
+        out, status = transpile_sql_file(
+            body.filename,
+            source_database=body.source_database,
+            target_database=body.target_database,
+        )
         return {"sql": out, "status": status, "filename": body.filename}
     if body.sql:
-        out, status = transpile_sql_adhoc(body.sql)
+        out, status = transpile_sql_adhoc(
+            body.sql,
+            source_database=body.source_database,
+            target_database=body.target_database,
+        )
         return {"sql": out, "status": status}
     raise HTTPException(400, "Provide filename or sql")
 
